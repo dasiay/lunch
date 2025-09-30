@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>午餐决定器 · 左左Plus</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><rect width='100%' height='100%' fill='white'/><text x='50%' y='55%' font-family='Arial' font-size='88' text-anchor='middle'>🍱</text></svg>">
+<style>
+  :root{--fg:#111;--bg:#fff;--muted:#7a7a7a;}
+  @media (prefers-color-scheme: dark){
+    :root{--fg:#f2f2f2;--bg:#0b0b0b;--muted:#9a9a9a;}
+    body{background:#0b0b0b;}
+  }
+  html,body{height:100%; margin:0;}
+  body{
+    font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+    color:var(--fg); background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .app{ width:min(760px, 94vw); padding:18px 14px 26px;}
+  h1{font-size:22px; margin:0 0 4px; font-weight:800;}
+  .sub{color:var(--muted); font-size:14px; margin-bottom:14px;}
+  .card{
+    border:1px solid rgba(127,127,127,.2);
+    border-radius:16px; padding:16px; text-align:center;
+    box-shadow:0 4px 14px rgba(0,0,0,.06);
+  }
+  .big{ font-size:36px; line-height:1.2; margin:8px 0 2px; font-weight:900;}
+  .muted{color:var(--muted); font-size:14px; margin:0 0 10px;}
+  .row{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:8px;}
+  button{
+    appearance:none; border:1px solid rgba(127,127,127,.25);
+    background:transparent; color:var(--fg);
+    padding:12px 14px; border-radius:12px; font-size:15px; font-weight:700;
+    min-width:112px;
+  }
+  button.primary{ background:var(--fg); color:var(--bg); border-color:var(--fg); }
+  button:active{ transform:translateY(1px); }
+  .controls{ display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap; margin:8px 0;}
+  select, input[type="number"]{
+    font-size:14px; padding:8px 10px; border-radius:10px;
+    border:1px solid rgba(127,127,127,.25); background:transparent; color:var(--fg);
+  }
+  .editor{ margin-top:14px; display:none; text-align:left;}
+  textarea{
+    width:100%; min-height:140px; font-size:15px; padding:12px;
+    border-radius:12px; border:1px solid rgba(127,127,127,.25);
+    color:var(--fg); background:transparent; resize:vertical;
+  }
+  .hint{ color:var(--muted); font-size:13px; margin:6px 0 2px; }
+  .footer{ color:var(--muted); text-align:center; font-size:12px; margin-top:12px;}
+  details{ margin-top:12px; }
+  summary{ cursor:pointer; font-weight:700; }
+  ul{ padding-left:18px; }
+</style>
+</head>
+<body>
+  <div class="app">
+    <h1>午餐决定器 · 左左Plus</h1>
+    <div class="sub">一键决定 + 不重复天数 + 偏好权重 + 历史记录。</div>
+
+    <div class="card">
+      <div id="result" class="big">还没决定</div>
+      <div id="note" class="muted">点下面的大按钮，让命运开口。</div>
+
+      <div class="controls">
+        <label>不重复天数
+          <select id="noRepeat">
+            <option value="0">0</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="5">5</option>
+            <option value="7">7</option>
+          </select>
+        </label>
+        <button id="love">偏爱它</button>
+        <button id="less">少见它</button>
+        <button id="historyBtn">历史记录</button>
+      </div>
+
+      <div class="row">
+        <button id="pick" class="primary">一键决定</button>
+        <button id="reroll">换一个</button>
+        <button id="toggleEdit">编辑清单</button>
+        <button id="reset">清空历史</button>
+        <button id="export">导出清单</button>
+        <button id="import">导入清单</button>
+      </div>
+
+      <div class="editor" id="editor">
+        <div class="hint">每行一个选项。例子：<code>粥粉面</code>、<code>炸鸡</code>、<code>寿司</code>…</div>
+        <textarea id="listBox"></textarea>
+        <div class="row" style="justify-content: flex-end;">
+          <button id="save">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <details id="historyPanel">
+      <summary>最近记录</summary>
+      <ul id="historyList"></ul>
+    </details>
+
+    <div class="footer">
+      提示：加到主屏幕后，它也会记住你的设置和偏好（本机 localStorage）。
+    </div>
+  </div>
+
+<script>
+(function(){
+  const DEFAULTS = [
+    "粥粉面","炸鸡","寿司","汉堡","沙拉","烧腊","麻辣烫",
+    "广式肠粉","云吞面","煲仔饭","炒粉/炒面","牛肉粉","越南粉",
+    "披萨","日式拉面","盖浇饭","卤粉/螺蛳粉","麻婆豆腐+米饭",
+    "火锅·小份","烤肉拌饭","简餐·便当","酸菜鱼","港式茶餐厅",
+    "轻食·三明治","公司食堂","今天不吃午饭（喝点奶茶）"
+  ];
+
+  const KEY_ITEMS = "lunch_items_v2";
+  const KEY_LAST = "lunch_last_v2";
+  const KEY_HIST = "lunch_history_v2";
+  const KEY_PREF = "lunch_pref_weights_v2";
+  const KEY_NOREP = "lunch_no_repeat_days_v2";
+
+  const $ = sel => document.querySelector(sel);
+  const result = $("#result");
+  const note = $("#note");
+  const listBox = $("#listBox");
+  const editor = $("#editor");
+  const historyPanel = $("#historyPanel");
+  const historyList = $("#historyList");
+  const noRepeatSel = $("#noRepeat");
+
+  // persistence helpers
+  const now = () => Date.now();
+  function loadItems(){
+    try {
+      const data = JSON.parse(localStorage.getItem(KEY_ITEMS));
+      if (Array.isArray(data) && data.length) return data;
+    } catch(e){}
+    return DEFAULTS.slice();
+  }
+  function saveItems(arr){ localStorage.setItem(KEY_ITEMS, JSON.stringify(arr.filter(Boolean))); }
+  function getLast(){ return localStorage.getItem(KEY_LAST) || ""; }
+  function setLast(v){ localStorage.setItem(KEY_LAST, v || ""); }
+  function loadHist(){ try { return JSON.parse(localStorage.getItem(KEY_HIST)) || []; } catch(e){ return []; } }
+  function saveHist(list){ localStorage.setItem(KEY_HIST, JSON.stringify(list)); }
+  function loadPref(){ try { return JSON.parse(localStorage.getItem(KEY_PREF)) || {}; } catch(e){ return {}; } }
+  function savePref(obj){ localStorage.setItem(KEY_PREF, JSON.stringify(obj)); }
+  function getNoRep(){ return parseInt(localStorage.getItem(KEY_NOREP) || "0", 10) || 0; }
+  function setNoRep(v){ localStorage.setItem(KEY_NOREP, String(v)); }
+
+  function renderHistory(){
+    const hist = loadHist().slice(-30).reverse();
+    historyList.innerHTML = "";
+    hist.forEach(h => {
+      const li = document.createElement("li");
+      const d = new Date(h.t);
+      li.textContent = `${h.item} · ${d.toLocaleString()}`;
+      historyList.appendChild(li);
+    });
+  }
+
+  function lastNDaysSet(n){
+    if (!n) return new Set();
+    const cutoff = now() - n*24*3600*1000;
+    const s = new Set();
+    for (const h of loadHist()){
+      if (h.t >= cutoff) s.add(h.item);
+    }
+    return s;
+  }
+
+  function weightedChoice(avoidSet){
+    const items = loadItems().map(s=>s.trim()).filter(Boolean);
+    if (!items.length) return "";
+    const pref = loadPref();
+    // Build weights array, avoidSet items get weight 0 (but if all zero, fall back uniform)
+    let weights = items.map(it => Math.max(0, (pref[it] || 1)));
+    const masked = weights.map((w,i)=> avoidSet.has(items[i]) ? 0 : w);
+    const sum = masked.reduce((a,b)=>a+b,0);
+    const useWeights = sum>0 ? masked : weights; // if all masked to 0, ignore mask
+    const total = useWeights.reduce((a,b)=>a+b,0);
+    let r = Math.random()*total;
+    for (let i=0;i<items.length;i++){
+      r -= useWeights[i];
+      if (r <= 0) return items[i];
+    }
+    return items[items.length-1];
+  }
+
+  function pickOne(){
+    const n = parseInt(noRepeatSel.value,10) || 0;
+    const avoid = lastNDaysSet(n);
+    const choice = weightedChoice(avoid);
+    return choice;
+  }
+
+  function renderChoice(txt){
+    if (!txt){
+      result.textContent = "清单是空的";
+      note.textContent = "点“编辑清单”添加一些吧。";
+      return;
+    }
+    result.textContent = txt;
+    note.textContent = "不喜欢？点“换一个”。";
+  }
+
+  function logChoice(item){
+    const hist = loadHist();
+    hist.push({item, t: now()});
+    const trimmed = hist.slice(-200);
+    saveHist(trimmed);
+    renderHistory();
+  }
+
+  // init
+  listBox.value = loadItems().join("\n");
+  noRepeatSel.value = String(getNoRep());
+  renderHistory();
+  const last = getLast();
+  if (last){ renderChoice(last); }
+
+  // events
+  $("#pick").addEventListener("click", ()=>{
+    const choice = pickOne();
+    renderChoice(choice);
+    setLast(choice);
+    logChoice(choice);
+  });
+
+  $("#reroll").addEventListener("click", ()=>{
+    const choice = pickOne();
+    renderChoice(choice);
+    setLast(choice);
+    logChoice(choice);
+  });
+
+  $("#toggleEdit").addEventListener("click", ()=>{
+    editor.style.display = (editor.style.display === "block" ? "none" : "block");
+    if (editor.style.display === "block"){
+      listBox.value = loadItems().join("\n");
+    }
+  });
+
+  $("#save").addEventListener("click", ()=>{
+    const lines = listBox.value.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+    saveItems(lines);
+    renderChoice("已保存，重新抽一次试试。");
+  });
+
+  $("#reset").addEventListener("click", ()=>{
+    localStorage.removeItem(KEY_HIST);
+    localStorage.removeItem(KEY_LAST);
+    renderHistory();
+    renderChoice("历史已清空，重新来。");
+  });
+
+  $("#historyBtn").addEventListener("click", ()=>{
+    historyPanel.open = !historyPanel.open;
+  });
+
+  $("#love").addEventListener("click", ()=>{
+    const cur = result.textContent.trim();
+    if (!cur || cur==="还没决定") return;
+    const pref = loadPref();
+    pref[cur] = Math.min(10, (pref[cur] || 1) + 1);
+    savePref(pref);
+    note.textContent = `已偏爱「${cur}」(权重=${pref[cur]})`;
+  });
+
+  $("#less").addEventListener("click", ()=>{
+    const cur = result.textContent.trim();
+    if (!cur || cur==="还没决定") return;
+    const pref = loadPref();
+    pref[cur] = Math.max(0, (pref[cur] || 1) - 1);
+    savePref(pref);
+    note.textContent = `已降低「${cur}」出现频率(权重=${pref[cur]})`;
+  });
+
+  $("#export").addEventListener("click", ()=>{
+    const blob = new Blob([loadItems().join("\\n")], {type:"text/plain;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "lunch_list.txt"; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  $("#import").addEventListener("click", ()=>{
+    const txt = prompt("把清单粘贴到这里（每行一个）。");
+    if (txt!=null){
+      const lines = txt.split(/\\n+/).map(s=>s.trim()).filter(Boolean);
+      if (lines.length){
+        saveItems(lines);
+        listBox.value = lines.join("\\n");
+        note.textContent = "清单已导入";
+      }
+    }
+  });
+
+  noRepeatSel.addEventListener("change", ()=>{
+    setNoRep(noRepeatSel.value);
+  });
+
+  // Tap result to quick-pick
+  result.addEventListener("click", ()=>{
+    const choice = pickOne();
+    renderChoice(choice);
+    setLast(choice);
+    logChoice(choice);
+  });
+})();
+</script>
+</body>
+</html>
